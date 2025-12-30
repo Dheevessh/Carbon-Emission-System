@@ -66,7 +66,10 @@ EMISSION_FACTORS = {
 }
 
 # Load the trained model
-MODEL_PATH = 'carbon_emission_model.pkl'
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, 'carbon_emission_model.pkl')
+
 
 def load_model():
     """Load the trained model pipeline."""
