@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EcoTrace | Carbon Emission Prediction</title>
+
+  <style>
+    :root{
+      /* Light eco palette */
+      --bg: #f4fff8;
+      --bg2:#eefbf4;
+      --card: rgba(255,255,255,.92);
+      --card2: rgba(255,255,255,.72);
+      --stroke: rgba(16, 185, 129, .18);
+
+      --text: #0b2b1d;
+      --muted: rgba(11,43,29,.70);
+      --muted2: rgba(11,43,29,.58);
+
+      --green: #10b981;   /* emerald */
+      --green2:#34d399;   /* mint */
+      --green3:#a7f3d0;   /* soft mint */
+      --teal:  #14b8a6;   /* teal accent */
+      --warn:  #f59e0b;   /* amber */
+      --vio:   #8b5cf6;   /* purple accent */
+
+      --shadow: 0 14px 40px rgba(8, 62, 41, .10);
+      --radius: 18px;
+    }
+
+    *{ box-sizing: border-box; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background:
+        radial-gradient(900px 600px at 15% 10%, rgba(16,185,129,.16), transparent 60%),
+        radial-gradient(900px 600px at 85% 20%, rgba(20,184,166,.12), transparent 60%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+      overflow-x:hidden;
+    }
+
+    .wrap{
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 18px 60px;
+    }
+
+    /* Header */
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap: 12px;
+      min-width: 220px;
+    }
+
+    .logo{
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(255,255,255,.2)),
+        linear-gradient(135deg, rgba(16,185,129,.95), rgba(52,211,153,.80));
+      box-shadow: 0 12px 28px rgba(16,185,129,.20);
+      display:grid;
+      place-items:center;
+      border: 1px solid rgba(16,185,129,.20);
+    }
+
+    .brand h1{
+      font-size: 16px;
+      margin:0;
+      letter-spacing:.2px;
+      line-height:1.15;
+    }
+    .brand p{
+      margin:2px 0 0;
+      font-size: 12px;
+      color: var(--muted2);
+    }
+
+    .pill{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(16,185,129,.10);
+      border: 1px solid rgba(16,185,129,.20);
+      color: rgba(11,43,29,.75);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .pill b{ color: var(--text); font-weight: 800; }
+
+    /* Main priority layout */
+    .main{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 980px){
+      .main{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: var(--card);
+      border: 1px solid rgba(16,185,129,.16);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .cardHead{
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid rgba(16,185,129,.12);
+      background:
+        radial-gradient(600px 140px at 10% 0%, rgba(16,185,129,.10), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.72));
+    }
+
+    .cardHead h2{
+      margin:0;
+      font-size: 15.5px;
+      letter-spacing:.2px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap: 7px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: rgba(11,43,29,.78);
+      background: rgba(16,185,129,.10);
+      border: 1px solid rgba(16,185,129,.18);
+      margin-top: 10px;
+      width: fit-content;
+    }
+
+    .content{
+      padding: 16px 18px 18px;
+    }
+
+    .hint{
+      margin: 8px 0 14px;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    /* Form */
+    form{ display:grid; gap: 12px; }
+
+    .row{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 640px){
+      .row{ grid-template-columns: 1fr; }
+    }
+
+    label{
+      display:block;
+      font-size: 12px;
+      color: rgba(11,43,29,.70);
+      margin: 0 0 7px;
+      font-weight: 800;
+      letter-spacing:.2px;
+    }
+
+    select, input{
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(16,185,129,.22);
+      background: rgba(255,255,255,.95);
+      color: var(--text);
+      outline: none;
+      font-size: 14px;
+    }
+
+    select:focus, input:focus{
+      border-color: rgba(16,185,129,.45);
+      box-shadow: 0 0 0 4px rgba(16,185,129,.14);
+    }
+
+    .opt{
+      font-size: 11.5px;
+      color: var(--muted2);
+      margin-top: 6px;
+      line-height: 1.35;
+    }
+
+    .btn{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(16,185,129,.30);
+      background: linear-gradient(135deg, rgba(16,185,129,.95), rgba(52,211,153,.85));
+      color: #083e29;
+      font-weight: 950;
+      cursor:pointer;
+      transition: transform .12s ease, filter .12s ease;
+      font-size: 14px;
+      letter-spacing:.2px;
+    }
+    .btn:hover{ transform: translateY(-1px); filter: brightness(1.01); }
+    .btn:disabled{ cursor:not-allowed; opacity:.70; transform:none; }
+
+    .spin{
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(8,62,41,.25);
+      border-top-color: rgba(8,62,41,.65);
+      display:none;
+      animation: rot .7s linear infinite;
+    }
+    @keyframes rot{ to{ transform: rotate(360deg); } }
+
+    .error{
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(239, 68, 68, .28);
+      background: rgba(239, 68, 68, .08);
+      color: rgba(127, 29, 29, .95);
+      display:none;
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    /* Results */
+    .statusRow{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .chip{
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(16,185,129,.20);
+      background: rgba(16,185,129,.10);
+      color: rgba(11,43,29,.78);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .big{
+      display:flex;
+      align-items: baseline;
+      gap: 10px;
+      margin: 12px 0 14px;
+    }
+    .big .val{
+      font-size: 36px;
+      font-weight: 980;
+      letter-spacing: .2px;
+      line-height: 1;
+    }
+    .big .unit{
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .split{
+      display:grid;
+      grid-template-columns: .95fr 1.05fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+    @media (max-width: 640px){
+      .split{ grid-template-columns: 1fr; }
+    }
+
+    .panel{
+      border-radius: 16px;
+      border: 1px solid rgba(16,185,129,.14);
+      background: rgba(255,255,255,.82);
+      padding: 14px;
+    }
+
+    .panelTitle{
+      margin: 0 0 10px;
+      font-size: 12px;
+      color: rgba(11,43,29,.70);
+      font-weight: 900;
+      letter-spacing: .2px;
+    }
+
+    /* Donut chart */
+    .donutWrap{
+      display:grid;
+      place-items:center;
+      min-height: 210px;
+      position: relative;
+    }
+    .donutCenter{
+      position:absolute;
+      text-align:center;
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: rgba(16,185,129,.08);
+      border: 1px solid rgba(16,185,129,.18);
+    }
+    .donutCenter b{ display:block; font-size: 14px; }
+    .donutCenter span{ display:block; font-size: 11px; color: var(--muted2); margin-top: 2px; }
+
+    .legend{
+      display:grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .leg{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(16,185,129,.14);
+      background: rgba(16,185,129,.06);
+    }
+    .leg .left{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .sw{
+      width: 10px; height: 10px;
+      border-radius: 99px;
+      flex: 0 0 auto;
+    }
+    .leg b{ font-size: 12.5px; }
+    .leg small{ display:block; font-size: 11px; color: var(--muted2); margin-top: 2px; }
+    .leg .right{ text-align:right; flex: 0 0 auto; }
+    .leg .pct{ font-weight: 980; }
+    .leg .kg{ font-size: 11px; color: var(--muted2); margin-top: 2px; }
+
+    /* Bars */
+    .bars{ margin-top: 12px; display:grid; gap: 10px; }
+    .barRow{ display:grid; gap: 6px; }
+    .barTop{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      color: rgba(11,43,29,.70);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .bar{
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(11,43,29,.08);
+      border: 1px solid rgba(16,185,129,.12);
+      overflow:hidden;
+    }
+    .fill{
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(16,185,129,.95), rgba(52,211,153,.85));
+      border-radius: 999px;
+      transition: width .45s ease;
+    }
+
+    /* Secondary sections under main */
+    .below{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin-top: 16px;
+    }
+    @media (max-width: 980px){
+      .below{ grid-template-columns: 1fr; }
+    }
+
+    .miniCard{
+      background: var(--card2);
+      border: 1px solid rgba(16,185,129,.14);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px 16px;
+    }
+    .miniCard h3{
+      margin:0 0 6px;
+      font-size: 13px;
+      letter-spacing:.2px;
+    }
+    .miniCard p{
+      margin:0;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+
+    details{
+      margin-top: 10px;
+      border-radius: 14px;
+      overflow:hidden;
+      border: 1px solid rgba(16,185,129,.14);
+      background: rgba(255,255,255,.85);
+    }
+    summary{
+      cursor:pointer;
+      list-style:none;
+      padding: 12px 14px;
+      font-weight: 900;
+      color: rgba(11,43,29,.78);
+      background: rgba(16,185,129,.06);
+      border-bottom: 1px solid rgba(16,185,129,.12);
+    }
+    summary::-webkit-details-marker{ display:none; }
+    .detailsBody{ padding: 12px 14px; color: var(--muted); font-size: 12.5px; line-height:1.6; }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    @media (max-width: 640px){
+      .grid2{ grid-template-columns: 1fr; }
+    }
+    .kv{
+      border: 1px solid rgba(16,185,129,.14);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: rgba(16,185,129,.05);
+    }
+    .kv b{ display:block; font-size: 12px; color: rgba(11,43,29,.78); }
+    .kv span{ display:block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <!-- Header -->
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M20 3s-7 1-11 5-5 11-5 11 7-1 11-5 5-11 5-11Z" stroke="rgba(8,62,41,.75)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 14c2-2 6-6 11-11" stroke="rgba(8,62,41,.75)" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h1>EcoTrace</h1>
+          <p>Carbon impact estimation with gas contribution visibility</p>
+        </div>
+      </div>
+
+      <div class="pill">
+        <span>Output:</span>
+        <b>kg CO₂e</b>
+        <span style="opacity:.35">•</span>
+        <span>CO₂ / CH₄ / N₂O</span>
+      </div>
+    </div>
+
+    <!-- MAIN: Inputs + Results as priority -->
+    <div class="main">
+
+      <!-- Inputs -->
+      <div class="card">
+        <div class="cardHead">
+          <h2>Prediction Inputs</h2>
+          <div class="tag">Enter operational inputs and generate an estimate</div>
+        </div>
+
+        <div class="content">
+          <p class="hint">
+            Fill in the fields below and click <b>Predict</b>. The results dashboard updates instantly with total CO₂e and a gas contribution breakdown.
+          </p>
+
+          <form id="predictionForm">
+            <div class="row">
+              <div>
+                <label for="waste_type">Waste Type *</label>
+                <select id="waste_type" name="waste_type" required>
+                  <option value="">Select waste type</option>
+                  <option value="Sludge">Sludge</option>
+                  <option value="Waste Oil">Waste Oil</option>
+                  <option value="Water Waste">Water Waste</option>
+                </select>
+                <div class="opt">Choose the waste stream being handled.</div>
+              </div>
+
+              <div>
+                <label for="treatment_method">Treatment Method *</label>
+                <select id="treatment_method" name="treatment_method" required>
+                  <option value="">Select treatment method</option>
+                  <option value="Physical">Physical</option>
+                  <option value="Chemical">Chemical</option>
+                  <option value="Biological">Biological</option>
+                  <option value="Pre-Treatment">Pre-Treatment</option>
+                  <option value="Dewatering">Dewatering</option>
+                </select>
+                <div class="opt">Method affects emission profiles.</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="vehicle_type">Vehicle Type *</label>
+                <select id="vehicle_type" name="vehicle_type" required>
+                  <option value="">Select vehicle type</option>
+                  <option value="Light Truck">Light Truck</option>
+                  <option value="Medium Truck">Medium Truck</option>
+                  <option value="Heavy Truck">Heavy Truck</option>
+                </select>
+                <div class="opt">Transport varies by vehicle class.</div>
+              </div>
+
+              <div>
+                <label for="quantity_tons">Quantity (tons) *</label>
+                <input type="number" id="quantity_tons" name="quantity_tons" step="0.01" min="0" required placeholder="e.g., 1.50">
+                <div class="opt">Total mass of waste handled.</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="transport_distance_km">Transport Distance (km) *</label>
+                <input type="number" id="transport_distance_km" name="transport_distance_km" step="0.1" min="0" required placeholder="e.g., 25.0">
+                <div class="opt">Distance from site to facility / disposal location.</div>
+              </div>
+
+              <div>
+                <label for="transport_emission_kgCO2e">Transport Emission (kg CO₂e) (optional)</label>
+                <input type="number" id="transport_emission_kgCO2e" name="transport_emission_kgCO2e" step="0.01" min="0" placeholder="Optional">
+                <div class="opt">Optional input (may not be used depending on model configuration).</div>
+              </div>
+            </div>
+
+            <div>
+              <label for="treatment_emission_kgCO2e">Treatment Emission (kg CO₂e) (optional)</label>
+              <input type="number" id="treatment_emission_kgCO2e" name="treatment_emission_kgCO2e" step="0.01" min="0" placeholder="Optional">
+              <div class="opt">Optional input (may not be used depending on model configuration).</div>
+            </div>
+
+            <button class="btn" type="submit" id="submitBtn">
+              <span class="spin" id="spinner"></span>
+              Predict Emissions
+            </button>
+          </form>
+
+          <div class="error" id="errorBox"></div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="card">
+        <div class="cardHead">
+          <h2>Results Dashboard</h2>
+          <div class="statusRow">
+            <div class="tag">Total CO₂e + contribution breakdown</div>
+            <div class="chip" id="statusChip">Waiting for input…</div>
+          </div>
+        </div>
+
+        <div class="content">
+          <div class="big">
+            <div class="val" id="totalVal">—</div>
+            <div class="unit" id="totalUnit">kg CO₂e</div>
+          </div>
+
+          <div class="split">
+            <!-- Donut + legend -->
+            <div class="panel">
+              <p class="panelTitle">Gas Breakdown (CO₂e Contribution)</p>
+
+              <div class="donutWrap">
+                <svg width="200" height="200" viewBox="0 0 200 200" aria-label="Gas breakdown donut chart">
+                  <circle cx="100" cy="100" r="74" fill="none" stroke="rgba(11,43,29,.08)" stroke-width="18" />
+                  <circle id="segCO2" cx="100" cy="100" r="74" fill="none" stroke="rgba(245,158,11,.92)" stroke-width="18"
+                          stroke-linecap="round" transform="rotate(-90 100 100)" stroke-dasharray="0 465" />
+                  <circle id="segCH4" cx="100" cy="100" r="74" fill="none" stroke="rgba(16,185,129,.95)" stroke-width="18"
+                          stroke-linecap="round" transform="rotate(-90 100 100)" stroke-dasharray="0 465" />
+                  <circle id="segN2O" cx="100" cy="100" r="74" fill="none" stroke="rgba(139,92,246,.92)" stroke-width="18"
+                          stroke-linecap="round" transform="rotate(-90 100 100)" stroke-dasharray="0 465" />
+                </svg>
+
+                <div class="donutCenter">
+                  <b id="dominantGas">—</b>
+                  <span>dominant contributor</span>
+                </div>
+              </div>
+
+              <div class="legend">
+                <div class="leg">
+                  <div class="left">
+                    <span class="sw" style="background: rgba(245,158,11,.92);"></span>
+                    <div>
+                      <b>CO₂</b>
+                      <small id="co2_kg">— kg CO₂e</small>
+                    </div>
+                  </div>
+                  <div class="right">
+                    <div class="pct" id="co2_pct">—%</div>
+                    <div class="kg">share</div>
+                  </div>
+                </div>
+
+                <div class="leg">
+                  <div class="left">
+                    <span class="sw" style="background: rgba(16,185,129,.95);"></span>
+                    <div>
+                      <b>CH₄</b>
+                      <small id="ch4_kg">— kg CO₂e</small>
+                    </div>
+                  </div>
+                  <div class="right">
+                    <div class="pct" id="ch4_pct">—%</div>
+                    <div class="kg">share</div>
+                  </div>
+                </div>
+
+                <div class="leg">
+                  <div class="left">
+                    <span class="sw" style="background: rgba(139,92,246,.92);"></span>
+                    <div>
+                      <b>N₂O</b>
+                      <small id="n2o_kg">— kg CO₂e</small>
+                    </div>
+                  </div>
+                  <div class="right">
+                    <div class="pct" id="n2o_pct">—%</div>
+                    <div class="kg">share</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bars -->
+            <div class="panel">
+              <p class="panelTitle">Contribution Bars</p>
+
+              <div class="bars">
+                <div class="barRow">
+                  <div class="barTop">
+                    <span>CO₂</span><span id="bar_co2_txt">—%</span>
+                  </div>
+                  <div class="bar"><div class="fill" id="bar_co2"></div></div>
+                </div>
+
+                <div class="barRow">
+                  <div class="barTop">
+                    <span>CH₄</span><span id="bar_ch4_txt">—%</span>
+                  </div>
+                  <div class="bar"><div class="fill" id="bar_ch4"></div></div>
+                </div>
+
+                <div class="barRow">
+                  <div class="barTop">
+                    <span>N₂O</span><span id="bar_n2o_txt">—%</span>
+                  </div>
+                  <div class="bar"><div class="fill" id="bar_n2o"></div></div>
+                </div>
+              </div>
+
+              <details>
+                <summary>Operations Profile (Sludge Dewatering)</summary>
+                <div class="detailsBody">
+                  <div class="grid2">
+                    <div class="kv">
+                      <b>Equipment</b>
+                      <span>Filter press + Advance dryer unit</span>
+                    </div>
+                    <div class="kv">
+                      <b>Origin point</b>
+                      <span>PETRONAS Penapisan Terengganu</span>
+                    </div>
+                    <div class="kv">
+                      <b>Moisture / solids (fraction)</b>
+                      <span>
+                        Feedstock: 0.04 solids / 0.96 water<br>
+                        After filter press: 0.29 solids / 0.71 water<br>
+                        After dryer: 0.55 solids / 0.45 water
+                      </span>
+                    </div>
+                    <div class="kv">
+                      <b>Energy use</b>
+                      <span>
+                        Filter press: 750 W<br>
+                        Dryer unit: 7500 W<br>
+                        Generator diesel: 800 L/month
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Secondary: company-style context (kept short) -->
+    <div class="below">
+      <div class="miniCard">
+        <h3>Why it matters</h3>
+        <p>Fast, consistent estimates reduce manual work and make reporting and scenario comparison easier across operations.</p>
+      </div>
+      <div class="miniCard">
+        <h3>What you get</h3>
+        <p>A single total impact metric (kg CO₂e) plus a transparent breakdown of CO₂, CH₄ and N₂O contributions.</p>
+      </div>
+      <div class="miniCard">
+        <h3>How it’s used</h3>
+        <p>Teams can standardize calculations, compare processes, and export dashboard outputs for internal reviews.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const form = document.getElementById('predictionForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const spinner = document.getElementById('spinner');
+    const errorBox = document.getElementById('errorBox');
+    const statusChip = document.getElementById('statusChip');
+
+    const totalVal = document.getElementById('totalVal');
+    const totalUnit = document.getElementById('totalUnit');
+
+    const co2_pct = document.getElementById('co2_pct');
+    const ch4_pct = document.getElementById('ch4_pct');
+    const n2o_pct = document.getElementById('n2o_pct');
+
+    const co2_kg = document.getElementById('co2_kg');
+    const ch4_kg = document.getElementById('ch4_kg');
+    const n2o_kg = document.getElementById('n2o_kg');
+
+    const bar_co2 = document.getElementById('bar_co2');
+    const bar_ch4 = document.getElementById('bar_ch4');
+    const bar_n2o = document.getElementById('bar_n2o');
+
+    const bar_co2_txt = document.getElementById('bar_co2_txt');
+    const bar_ch4_txt = document.getElementById('bar_ch4_txt');
+    const bar_n2o_txt = document.getElementById('bar_n2o_txt');
+
+    const dominantGas = document.getElementById('dominantGas');
+
+    const segCO2 = document.getElementById('segCO2');
+    const segCH4 = document.getElementById('segCH4');
+    const segN2O = document.getElementById('segN2O');
+
+    // Donut circumference for r=74: 2*pi*r ≈ 465
+    const CIRC = 465;
+
+    function clampPct(x){
+      if (isNaN(x)) return 0;
+      return Math.max(0, Math.min(100, x));
+    }
+
+    function setSegment(circleEl, startPct, pct){
+      const p = clampPct(pct);
+      const start = clampPct(startPct);
+
+      const dash = (p / 100) * CIRC;
+      const gap = CIRC - dash;
+
+      circleEl.style.strokeDasharray = `${dash} ${gap}`;
+      circleEl.style.strokeDashoffset = `${-(start / 100) * CIRC}`;
+    }
+
+    function setBars(co2P, ch4P, n2oP){
+      bar_co2.style.width = co2P + '%';
+      bar_ch4.style.width = ch4P + '%';
+      bar_n2o.style.width = n2oP + '%';
+
+      bar_co2_txt.textContent = co2P.toFixed(2) + '%';
+      bar_ch4_txt.textContent = ch4P.toFixed(2) + '%';
+      bar_n2o_txt.textContent = n2oP.toFixed(2) + '%';
+    }
+
+    function dominantLabel(co2P, ch4P, n2oP){
+      const max = Math.max(co2P, ch4P, n2oP);
+      if (max === co2P) return 'CO₂';
+      if (max === ch4P) return 'CH₄';
+      return 'N₂O';
+    }
+
+    function showError(msg){
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+      statusChip.textContent = 'Error';
+    }
+    function clearError(){
+      errorBox.style.display = 'none';
+      errorBox.textContent = '';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError();
+
+      spinner.style.display = 'inline-block';
+      submitBtn.disabled = true;
+      statusChip.textContent = 'Predicting…';
+
+      const fd = new FormData(form);
+      const data = {};
+      for (const [k, v] of fd.entries()) data[k] = v;
+
+      try{
+        const res = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const out = await res.json();
+
+        if (!out.success){
+          showError('Error: ' + (out.error || 'Unknown error occurred'));
+          return;
+        }
+
+        totalVal.textContent = (out.prediction ?? '—');
+        totalUnit.textContent = out.unit || 'kg CO₂e';
+        statusChip.textContent = 'Prediction ready';
+
+        const b = out.gas_breakdown;
+        if (b && b.co2 && b.ch4 && b.n2o){
+          const co2P = clampPct(Number(b.co2.percentage));
+          const ch4P = clampPct(Number(b.ch4.percentage));
+          const n2oP = clampPct(Number(b.n2o.percentage));
+
+          co2_pct.textContent = co2P.toFixed(2) + '%';
+          ch4_pct.textContent = ch4P.toFixed(2) + '%';
+          n2o_pct.textContent = n2oP.toFixed(2) + '%';
+
+          co2_kg.textContent = (Number(b.co2.co2e_kg).toFixed(2)) + ' kg CO₂e';
+          ch4_kg.textContent = (Number(b.ch4.co2e_kg).toFixed(2)) + ' kg CO₂e';
+          n2o_kg.textContent = (Number(b.n2o.co2e_kg).toFixed(2)) + ' kg CO₂e';
+
+          setSegment(segCO2, 0, co2P);
+          setSegment(segCH4, co2P, ch4P);
+          setSegment(segN2O, co2P + ch4P, n2oP);
+
+          setBars(co2P, ch4P, n2oP);
+          dominantGas.textContent = dominantLabel(co2P, ch4P, n2oP);
+        } else {
+          setSegment(segCO2, 0, 0);
+          setSegment(segCH4, 0, 0);
+          setSegment(segN2O, 0, 0);
+          setBars(0,0,0);
+          dominantGas.textContent = '—';
+        }
+
+      } catch(err){
+        showError('Error: ' + err.message);
+      } finally{
+        spinner.style.display = 'none';
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
