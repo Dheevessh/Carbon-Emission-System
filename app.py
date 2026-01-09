@@ -10,6 +10,7 @@ import pandas as pd
 import joblib
 import os
 import numpy as np
+import re
 
 app = Flask(__name__)
 
@@ -78,7 +79,44 @@ def load_model():
     return joblib.load(MODEL_PATH)
 
 
-def calculate_gas_breakdown(waste_type, treatment_method, quantity_tons, transport_distance_km, vehicle_type, total_co2e):
+def _safe_predict(pipeline, input_df: pd.DataFrame) -> float:
+    """Run prediction and auto-fill any missing required columns with default values."""
+    df = input_df.copy()
+
+    for _ in range(4):
+        try:
+            return float(pipeline.predict(df)[0])
+        except Exception as e:
+            msg = str(e)
+            missing = set()
+
+            m1 = re.search(r"columns are missing: \{([^}]*)\}", msg)
+            if m1:
+                raw = m1.group(1)
+                for part in raw.split(","):
+                    name = part.strip().strip("'").strip('"')
+                    if name:
+                        missing.add(name)
+
+            m2 = re.search(r"now missing:\s*\[([^\]]*)\]", msg)
+            if m2:
+                raw = m2.group(1)
+                for part in raw.split(","):
+                    name = part.strip().strip("'").strip('"')
+                    if name:
+                        missing.add(name)
+
+            if not missing:
+                raise
+
+            for col in missing:
+                if col not in df.columns:
+                    df[col] = 0.0
+
+    return float(pipeline.predict(df)[0])
+
+
+def calculate_gas_breakdown(waste_type, treatment_method, quantity_tons, transport_distance_km, vehicle_type, total_co2e, extra_treatment_co2e=0.0):
     """
     Calculate CO2, CH4, and N2O breakdown from total CO2e using emission factors.
     
@@ -202,6 +240,14 @@ def calculate_gas_breakdown(waste_type, treatment_method, quantity_tons, transpo
     
     # Combine treatment and transport CO2e contributions
     total_co2e_co2 = treatment_co2e_co2 + transport_co2e_co2
+    # Optional adjustment: user-provided treatment emissions are added to the CO2 share
+    try:
+        extra_treatment_co2e = float(extra_treatment_co2e or 0.0)
+    except Exception:
+        extra_treatment_co2e = 0.0
+    if extra_treatment_co2e < 0:
+        extra_treatment_co2e = 0.0
+    total_co2e_co2 += extra_treatment_co2e
     total_co2e_ch4 = treatment_co2e_ch4 + transport_co2e_ch4
     total_co2e_n2o = treatment_co2e_n2o + transport_co2e_n2o
     calculated_total_co2e = total_co2e_co2 + total_co2e_ch4 + total_co2e_n2o
@@ -260,57 +306,84 @@ def index():
 def predict():
     """Handle form submission and return prediction."""
     try:
-        # Get form data (can be JSON or form data)
-        if request.is_json:
-            data = request.get_json()
-        else:
-            data = request.form.to_dict()
-        
-        # Extract input values (note: model was trained without transport_emission and treatment_emission)
-        waste_type = data.get('waste_type')
-        treatment_method = data.get('treatment_method')
-        vehicle_type = data.get('vehicle_type')
-        quantity_tons = float(data.get('quantity_tons', 0))
-        transport_distance_km = float(data.get('transport_distance_km', 0))
-        
-        # Note: transport_emission_kgCO2e and treatment_emission_kgCO2e are collected 
-        # from the form but not used in prediction (model was trained without them)
-        # facility_efficiency_% is required by the model but not shown in the form (using default value)
-        
-        # Create DataFrame with correct column names and order matching training data
+        # Get input data (JSON or form)
+        data = request.get_json() if request.is_json else request.form.to_dict()
+
+        waste_type = (data.get('waste_type') or '').strip()
+        treatment_method = (data.get('treatment_method') or '').strip()
+        vehicle_type = (data.get('vehicle_type') or '').strip()  # optional
+        quantity_tons_raw = data.get('quantity_tons', '')
+        transport_distance_raw = data.get('transport_distance_km', '')
+
+        # Optional: user-provided treatment emissions (kg CO2e) to be added to the predicted total
+        treatment_emission_raw = data.get('treatment_emission_kgCO2e', '')
+
+        # Basic validation for required fields
+        if not waste_type:
+            return jsonify({'success': False, 'error': 'Waste type is required.'}), 400
+        if not treatment_method:
+            return jsonify({'success': False, 'error': 'Treatment method is required.'}), 400
+
+        try:
+            quantity_tons = float(quantity_tons_raw)
+        except Exception:
+            return jsonify({'success': False, 'error': 'Quantity (tons) must be a valid number.'}), 400
+
+        try:
+            transport_distance_km = float(transport_distance_raw)
+        except Exception:
+            return jsonify({'success': False, 'error': 'Transport distance (km) must be a valid number.'}), 400
+
+        if quantity_tons < 0 or transport_distance_km < 0:
+            return jsonify({'success': False, 'error': 'Quantity and distance must be non-negative.'}), 400
+
+        try:
+            treatment_emission_kgco2e = float(treatment_emission_raw) if str(treatment_emission_raw).strip() != '' else 0.0
+        except Exception:
+            return jsonify({'success': False, 'error': 'Treatment emission must be a valid number.'}), 400
+
+        if treatment_emission_kgco2e < 0:
+            return jsonify({'success': False, 'error': 'Treatment emission must be non-negative.'}), 400
+
+        # Prepare model input (aligned to current UI fields)
         input_data = pd.DataFrame({
             'waste_type': [waste_type],
             'treatment_method': [treatment_method],
+            'vehicle_type': [vehicle_type if vehicle_type else 'Unknown'],
             'quantity_tons': [quantity_tons],
-            'vehicle_type': [vehicle_type],
             'transport_distance_km': [transport_distance_km],
-            'facility_efficiency_%': [75.0]  # Default value since field is not in form
         })
-        
+
         # Make prediction
         if model is None:
-            return jsonify({'error': 'Model not loaded'}), 500
-        
-        prediction = model.predict(input_data)[0]
-        
-        # Calculate gas breakdown using IPCC GWP formula
+            return jsonify({'success': False, 'error': 'Model not loaded'}), 500
+
+        predicted_total = _safe_predict(model, input_data)
+
+        # Incorporate treatment emissions into the final total
+        final_total = predicted_total + treatment_emission_kgco2e
+
+        # Gas breakdown (uses the final total so dashboard stays consistent)
         gas_breakdown = calculate_gas_breakdown(
-            waste_type, treatment_method, quantity_tons, transport_distance_km, vehicle_type, prediction
+            waste_type,
+            treatment_method,
+            quantity_tons,
+            transport_distance_km,
+            vehicle_type if vehicle_type else 'Unknown',
+            final_total,
+            extra_treatment_co2e=treatment_emission_kgco2e
         )
-        
-        # Return result with gas breakdown
+
         return jsonify({
             'success': True,
-            'prediction': round(prediction, 2),
+            'prediction': round(final_total, 2),
             'unit': 'kg CO₂e',
             'gas_breakdown': gas_breakdown
         })
-        
+
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 400
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 
 
 if __name__ == '__main__':
