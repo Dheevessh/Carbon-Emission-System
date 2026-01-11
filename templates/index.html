@@ -463,19 +463,6 @@
 
     <!-- Header -->
     <div class="topbar">
-      <div class="brand">
-        <div class="logo" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M20 3s-7 1-11 5-5 11-5 11 7-1 11-5 5-11 5-11Z" stroke="rgba(8,62,41,.75)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M9 14c2-2 6-6 11-11" stroke="rgba(8,62,41,.75)" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div>
-          <h1>EcoTrace</h1>
-          <p>Carbon impact estimation with gas contribution visibility</p>
-        </div>
-      </div>
-
       <div class="pill">
         <span>Output:</span>
         <b>kg CO₂e</b>
@@ -556,7 +543,7 @@
             <div>
               <label for="treatment_emission_kgCO2e">Treatment Emission (kg CO₂e) (optional)</label>
               <input type="number" id="treatment_emission_kgCO2e" name="treatment_emission_kgCO2e" step="0.01" min="0" placeholder="Optional">
-              <div class="opt">Optional input (may not be used depending on model configuration).</div>
+              <div class="opt">Optional input.</div>
             </div>
 
             <button class="btn" type="submit" id="submitBtn">
@@ -679,37 +666,6 @@
                 </div>
               </div>
 
-              <details>
-                <summary>Operations Profile (Sludge Dewatering)</summary>
-                <div class="detailsBody">
-                  <div class="grid2">
-                    <div class="kv">
-                      <b>Equipment</b>
-                      <span>Filter press + Advance dryer unit</span>
-                    </div>
-                    <div class="kv">
-                      <b>Origin point</b>
-                      <span>PETRONAS Penapisan Terengganu</span>
-                    </div>
-                    <div class="kv">
-                      <b>Moisture / solids (fraction)</b>
-                      <span>
-                        Feedstock: 0.04 solids / 0.96 water<br>
-                        After filter press: 0.29 solids / 0.71 water<br>
-                        After dryer: 0.55 solids / 0.45 water
-                      </span>
-                    </div>
-                    <div class="kv">
-                      <b>Energy use</b>
-                      <span>
-                        Filter press: 750 W<br>
-                        Dryer unit: 7500 W<br>
-                        Generator diesel: 800 L/month
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </details>
 
             </div>
           </div>
@@ -722,15 +678,15 @@
     <div class="below">
       <div class="miniCard">
         <h3>Why it matters</h3>
-        <p>Fast, consistent estimates reduce manual work and make reporting and scenario comparison easier across operations.</p>
+        <p>Carbon emissions from waste management significantly impact climate change and regulatory compliance. Accurate tracking enables organizations to quantify their environmental footprint, identify reduction opportunities, and meet sustainability goals. This tool helps bridge the gap between operational activities and measurable environmental impact, supporting data-driven decisions for more sustainable waste management practices.</p>
       </div>
       <div class="miniCard">
         <h3>What you get</h3>
-        <p>A single total impact metric (kg CO₂e) plus a transparent breakdown of CO₂, CH₄ and N₂O contributions.</p>
+        <p>A comprehensive carbon footprint assessment including total CO₂e emissions in kilograms, plus detailed gas-specific contributions (CO₂, CH₄, N₂O). The interactive dashboard provides visual breakdowns through donut charts and progress bars, making complex emission data accessible and actionable. Each greenhouse gas is converted to CO₂ equivalent using IPCC Global Warming Potential factors for standardized comparison.</p>
       </div>
       <div class="miniCard">
         <h3>How it’s used</h3>
-        <p>Teams can standardize calculations, compare processes, and export dashboard outputs for internal reviews.</p>
+        <p>This prediction tool enables waste management teams to evaluate treatment method effectiveness, optimize transportation logistics, and compare emission profiles across different waste streams. Organizations can use it for regulatory reporting, carbon accounting, supplier evaluations, and developing emission reduction strategies. The standardized calculations ensure consistency across departments and support integration with broader environmental management systems.</p>
       </div>
     </div>
 
