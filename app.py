@@ -2,7 +2,12 @@
 Flask Web Application for Carbon Emission Prediction
 ====================================================
 Simple web interface for predicting total carbon emissions
-based on waste and transport details.
+based on waste and operational details.
+
+NOTE:
+- This version EXCLUDES any explicit transport-emission calculation.
+- The model may still use transport-related inputs as features, but the
+  gas breakdown is computed without any transport-emission component.
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -15,33 +20,17 @@ import re
 app = Flask(__name__)
 
 # =============================================================================
-# GLOBAL WARMING POTENTIALS (GWP) - IPCC AR5 (2013)
-# Source: IPCC Fifth Assessment Report (AR5), Working Group I, Chapter 8
-# https://www.ipcc.ch/report/ar5/wg1/
+# GLOBAL WARMING POTENTIALS (GWP) - 100-year horizon
 # =============================================================================
-# GWP values represent the relative warming impact of a gas compared to CO2
-# over a 100-year time horizon
-GWP_CH4 = 28   # CH4 GWP = 28 (without climate-carbon feedbacks)
-               # CH4 GWP = 34 (with climate-carbon feedbacks) - using conservative value
-GWP_N2O = 298  # N2O GWP = 298 (without climate-carbon feedbacks)
-               # N2O GWP = 298 (with climate-carbon feedbacks)
+# CO2 baseline GWP = 1
+GWP_CH4 = 28
+GWP_N2O = 298
 
 # =============================================================================
-# EMISSION FACTORS (kg gas per kg waste)
-# NOTE: These are currently ESTIMATED/PLACEHOLDER values
-# TODO: Replace with validated emission factors from:
-#   - EPA Emission Factor Database
-#   - IPCC Guidelines for National Greenhouse Gas Inventories
-#   - Peer-reviewed literature specific to waste treatment processes
-#   - Life Cycle Assessment (LCA) databases
+# EMISSION FACTORS (kg gas per kg waste) - treatment-related only
+# NOTE: These are estimated/placeholder values and should be replaced
+# with validated factors aligned to the organisation’s reporting basis.
 # =============================================================================
-# Formula for treatment emissions:
-#   Gas_mass (kg) = Emission_Factor (kg gas/kg waste) × Quantity (kg waste)
-#
-# Sources for emission factors should include:
-#   - EPA AP-42: Compilation of Air Pollutant Emission Factors
-#   - IPCC 2006 Guidelines: Wastewater Treatment and Discharge (Chapter 6)
-#   - Journal articles on waste treatment emissions (e.g., Waste Management)
 EMISSION_FACTORS = {
     'Sludge': {
         'Physical': {'CO2': 0.015, 'CH4': 0.008, 'N2O': 0.001},
@@ -66,8 +55,6 @@ EMISSION_FACTORS = {
     }
 }
 
-# Load the trained model
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, 'carbon_emission_model.pkl')
 
@@ -80,7 +67,10 @@ def load_model():
 
 
 def _safe_predict(pipeline, input_df: pd.DataFrame) -> float:
-    """Run prediction and auto-fill any missing required columns with default values."""
+    """
+    Run prediction and auto-fill any missing required columns with default values.
+    This helps if the saved pipeline expects extra columns (e.g., from prior experiments).
+    """
     df = input_df.copy()
 
     for _ in range(4):
@@ -116,176 +106,74 @@ def _safe_predict(pipeline, input_df: pd.DataFrame) -> float:
     return float(pipeline.predict(df)[0])
 
 
-def calculate_gas_breakdown(waste_type, treatment_method, quantity_tons, transport_distance_km, vehicle_type, total_co2e, extra_treatment_co2e=0.0):
+def calculate_gas_breakdown(waste_type, treatment_method, quantity_tons, total_co2e, extra_treatment_co2e=0.0):
     """
-    Calculate CO2, CH4, and N2O breakdown from total CO2e using emission factors.
-    
-    FORMULAS USED:
-    ==============
-    
-    1. CO2 Equivalent (CO2e) Calculation (IPCC Standard Formula):
-       -----------------------------------------------------------
-       CO2e_total = CO2_mass + (CH4_mass × GWP_CH4) + (N2O_mass × GWP_N2O)
-       
-       Where:
-       - CO2_mass: mass of CO2 in kg
-       - CH4_mass: mass of CH4 in kg
-       - N2O_mass: mass of N2O in kg
-       - GWP_CH4 = 28 (IPCC AR5)
-       - GWP_N2O = 298 (IPCC AR5)
-    
-    2. Treatment Gas Emissions:
-       ------------------------
-       Gas_mass (kg) = Emission_Factor (kg gas/kg waste) × Quantity (kg waste)
-       
-       Applied separately for CO2, CH4, and N2O using specific emission factors
-       for each waste_type and treatment_method combination.
-    
-    3. Transport Emissions:
-       --------------------
-       Transport_CO2e (kg) = Transport_Factor (kg CO2e/km/ton) × Distance (km) × Quantity (tons)
-       
-       Transport emissions are primarily CO2 (99%), with small CH4 (0.8%) and N2O (0.2%)
-       contributions from incomplete fuel combustion.
-    
-    4. Percentage Calculation:
-       -----------------------
-       Gas_Percentage (%) = (Gas_CO2e / Total_CO2e) × 100
-    
-    SOURCES:
-    ========
-    
-    GWP Values:
-    - IPCC AR5 (2013): Climate Change 2013: The Physical Science Basis
-      Chapter 8: Anthropogenic and Natural Radiative Forcing
-      Table 8.7: Global Warming Potentials (GWP)
-      https://www.ipcc.ch/report/ar5/wg1/
-    
-    Emission Factors:
-    - Currently using estimated values - REPLACE with:
-      * EPA AP-42: Compilation of Air Pollutant Emission Factors
-        https://www.epa.gov/air-emissions-factors-and-quantification/ap-42-compilation-air-emissions-factors
-      * IPCC 2006 Guidelines for National Greenhouse Gas Inventories
-        Volume 5: Waste - Chapter 6: Wastewater Treatment and Discharge
-        https://www.ipcc-nggip.iges.or.jp/public/2006gl/vol5.html
-      * EPA GHG Emission Factors Hub
-        https://www.epa.gov/climateleadership/ghg-emission-factors-hub
-    
-    Transport Factors:
-    - EPA MOVES (Motor Vehicle Emission Simulator) model
-    - GREET Model (Argonne National Laboratory)
-    - Default factors approximate typical diesel truck emissions
-    
-    Uses IPCC AR5 Global Warming Potentials (GWP):
-    - CO2: GWP = 1 (baseline)
-    - CH4: GWP = 28 (over 100 years, without climate-carbon feedbacks)
-    - N2O: GWP = 298 (over 100 years, without climate-carbon feedbacks)
-    
-    Parameters:
-    -----------
-    waste_type : str
-        Type of waste (Sludge, Waste Oil, Water Waste)
-    treatment_method : str
-        Treatment method applied
-    quantity_tons : float
-        Quantity of waste in tons
-    transport_distance_km : float
-        Transport distance in km
-    vehicle_type : str
-        Type of vehicle used
-    total_co2e : float
-        Total CO2 equivalent emissions in kg CO2e (from model prediction)
-    
-    Returns:
-    --------
-    dict : Dictionary containing individual gas CO2e contributions and percentages
+    Compute CO2, CH4, and N2O contributions (in kg CO2e) for interpretability.
+
+    This breakdown excludes any explicit transport-emission computation.
+
+    Steps:
+    1) Estimate treatment-related gas masses using emission factors:
+       m_gas (kg) = EF_gas (kg gas/kg waste) × Q_kg (kg waste)
+
+    2) Convert gas masses to CO2e:
+       CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
+
+    3) Add optional user-provided treatment adjustment (kg CO2e) to CO2 share.
+
+    4) Scale contributions so their sum matches the model’s total CO2e.
     """
-    # Get treatment emission factors (kg gas per kg waste)
     factors = EMISSION_FACTORS.get(waste_type, {}).get(treatment_method, {})
-    
     if not factors:
-        # Default factors if combination not found
         factors = {'CO2': 0.020, 'CH4': 0.010, 'N2O': 0.005}
-    
+
     # Convert quantity from tons to kg
-    quantity_kg = quantity_tons * 1000
-    
-    # Calculate treatment-related individual gas masses (kg)
-    treatment_co2_mass = factors['CO2'] * quantity_kg
-    treatment_ch4_mass = factors['CH4'] * quantity_kg
-    treatment_n2o_mass = factors['N2O'] * quantity_kg
-    
-    # Calculate treatment CO2e using IPCC GWP formula
-    treatment_co2e_co2 = treatment_co2_mass * 1  # CO2 GWP = 1
-    treatment_co2e_ch4 = treatment_ch4_mass * GWP_CH4  # CH4 GWP = 28
-    treatment_co2e_n2o = treatment_n2o_mass * GWP_N2O  # N2O GWP = 298
-    
-    # Calculate total treatment CO2e
-    treatment_co2e_total = treatment_co2e_co2 + treatment_co2e_ch4 + treatment_co2e_n2o
-    
-    # Estimate transport emissions (primarily CO2 from fuel combustion)
-    # Transport emission factors (kg CO2e per km per ton) - approximate values
-    transport_factors = {
-        'Light Truck': 0.15,
-        'Medium Truck': 0.25,
-        'Heavy Truck': 0.40
-    }
-    transport_co2e_per_km_per_ton = transport_factors.get(vehicle_type, 0.25)
-    
-    # Calculate transport CO2e (primarily CO2, minimal CH4 and N2O from fuel combustion)
-    transport_co2e = transport_co2e_per_km_per_ton * transport_distance_km * quantity_tons
-    transport_co2e_co2 = transport_co2e * 0.99  # 99% CO2 from transport
-    transport_co2e_ch4 = transport_co2e * 0.008  # ~0.8% CH4 from transport
-    transport_co2e_n2o = transport_co2e * 0.002  # ~0.2% N2O from transport
-    
-    # Combine treatment and transport CO2e contributions
-    total_co2e_co2 = treatment_co2e_co2 + transport_co2e_co2
-    # Optional adjustment: user-provided treatment emissions are added to the CO2 share
+    quantity_kg = float(quantity_tons) * 1000.0
+
+    # Treatment-related gas masses (kg)
+    treatment_co2_mass = float(factors.get('CO2', 0.0)) * quantity_kg
+    treatment_ch4_mass = float(factors.get('CH4', 0.0)) * quantity_kg
+    treatment_n2o_mass = float(factors.get('N2O', 0.0)) * quantity_kg
+
+    # Convert to CO2e contributions
+    raw_co2e_co2 = treatment_co2_mass * 1.0
+    raw_co2e_ch4 = treatment_ch4_mass * float(GWP_CH4)
+    raw_co2e_n2o = treatment_n2o_mass * float(GWP_N2O)
+
+    # Optional adjustment: add user-provided treatment CO2e to CO2 share
     try:
         extra_treatment_co2e = float(extra_treatment_co2e or 0.0)
     except Exception:
         extra_treatment_co2e = 0.0
     if extra_treatment_co2e < 0:
         extra_treatment_co2e = 0.0
-    total_co2e_co2 += extra_treatment_co2e
-    total_co2e_ch4 = treatment_co2e_ch4 + transport_co2e_ch4
-    total_co2e_n2o = treatment_co2e_n2o + transport_co2e_n2o
-    calculated_total_co2e = total_co2e_co2 + total_co2e_ch4 + total_co2e_n2o
-    
-    # Scale to match the model's predicted total (accounts for other factors)
-    if calculated_total_co2e > 0:
-        scale_factor = total_co2e / calculated_total_co2e
+
+    raw_co2e_co2 += extra_treatment_co2e
+
+    raw_total = raw_co2e_co2 + raw_co2e_ch4 + raw_co2e_n2o
+    if raw_total > 0:
+        scale_factor = float(total_co2e) / raw_total
     else:
         scale_factor = 1.0
-    
-    # Final scaled CO2e contributions
-    final_co2e_co2 = total_co2e_co2 * scale_factor
-    final_co2e_ch4 = total_co2e_ch4 * scale_factor
-    final_co2e_n2o = total_co2e_n2o * scale_factor
-    
-    # Calculate percentages of total CO2e
-    if total_co2e > 0:
-        pct_co2 = (final_co2e_co2 / total_co2e) * 100
-        pct_ch4 = (final_co2e_ch4 / total_co2e) * 100
-        pct_n2o = (final_co2e_n2o / total_co2e) * 100
+
+    final_co2e_co2 = raw_co2e_co2 * scale_factor
+    final_co2e_ch4 = raw_co2e_ch4 * scale_factor
+    final_co2e_n2o = raw_co2e_n2o * scale_factor
+
+    if float(total_co2e) > 0:
+        pct_co2 = (final_co2e_co2 / float(total_co2e)) * 100.0
+        pct_ch4 = (final_co2e_ch4 / float(total_co2e)) * 100.0
+        pct_n2o = (final_co2e_n2o / float(total_co2e)) * 100.0
     else:
-        pct_co2 = pct_ch4 = pct_n2o = 0
-    
+        pct_co2 = pct_ch4 = pct_n2o = 0.0
+
     return {
-        'co2': {
-            'co2e_kg': round(final_co2e_co2, 2),
-            'percentage': round(pct_co2, 2)
-        },
-        'ch4': {
-            'co2e_kg': round(final_co2e_ch4, 2),
-            'percentage': round(pct_ch4, 2)
-        },
-        'n2o': {
-            'co2e_kg': round(final_co2e_n2o, 2),
-            'percentage': round(pct_n2o, 2)
-        },
-        'total_co2e': round(total_co2e, 2)
+        'co2': {'co2e_kg': round(final_co2e_co2, 2), 'percentage': round(pct_co2, 2)},
+        'ch4': {'co2e_kg': round(final_co2e_ch4, 2), 'percentage': round(pct_ch4, 2)},
+        'n2o': {'co2e_kg': round(final_co2e_n2o, 2), 'percentage': round(pct_n2o, 2)},
+        'total_co2e': round(float(total_co2e), 2)
     }
+
 
 # Load model at startup
 try:
@@ -306,19 +194,17 @@ def index():
 def predict():
     """Handle form submission and return prediction."""
     try:
-        # Get input data (JSON or form)
         data = request.get_json() if request.is_json else request.form.to_dict()
 
         waste_type = (data.get('waste_type') or '').strip()
         treatment_method = (data.get('treatment_method') or '').strip()
-        vehicle_type = (data.get('vehicle_type') or '').strip()  # optional
+        vehicle_type = (data.get('vehicle_type') or '').strip()  # still allowed as a model feature
         quantity_tons_raw = data.get('quantity_tons', '')
-        transport_distance_raw = data.get('transport_distance_km', '')
+        transport_distance_raw = data.get('transport_distance_km', '')  # still allowed as a model feature
 
-        # Optional: user-provided treatment emissions (kg CO2e) to be added to the predicted total
+        # Optional: user-provided treatment emissions (kg CO2e)
         treatment_emission_raw = data.get('treatment_emission_kgCO2e', '')
 
-        # Basic validation for required fields
         if not waste_type:
             return jsonify({'success': False, 'error': 'Waste type is required.'}), 400
         if not treatment_method:
@@ -345,7 +231,7 @@ def predict():
         if treatment_emission_kgco2e < 0:
             return jsonify({'success': False, 'error': 'Treatment emission must be non-negative.'}), 400
 
-        # Prepare model input (aligned to current UI fields)
+        # Model input (aligned with trained features)
         input_data = pd.DataFrame({
             'waste_type': [waste_type],
             'treatment_method': [treatment_method],
@@ -354,23 +240,20 @@ def predict():
             'transport_distance_km': [transport_distance_km],
         })
 
-        # Make prediction
         if model is None:
             return jsonify({'success': False, 'error': 'Model not loaded'}), 500
 
         predicted_total = _safe_predict(model, input_data)
 
-        # Incorporate treatment emissions into the final total
-        final_total = predicted_total + treatment_emission_kgco2e
+        # Incorporate user-provided treatment emissions into the final total
+        final_total = float(predicted_total) + float(treatment_emission_kgco2e)
 
-        # Gas breakdown (uses the final total so dashboard stays consistent)
+        # Gas breakdown (no transport-emission calculation)
         gas_breakdown = calculate_gas_breakdown(
-            waste_type,
-            treatment_method,
-            quantity_tons,
-            transport_distance_km,
-            vehicle_type if vehicle_type else 'Unknown',
-            final_total,
+            waste_type=waste_type,
+            treatment_method=treatment_method,
+            quantity_tons=quantity_tons,
+            total_co2e=final_total,
             extra_treatment_co2e=treatment_emission_kgco2e
         )
 
@@ -385,7 +268,5 @@ def predict():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
-
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
-
